@@ -4,39 +4,43 @@ import scipy.io.wavfile
 import torch
 from transformers import AutoProcessor, MusicgenForConditionalGeneration
 
+device = "cuda"
 model_id = "facebook/musicgen-small"
 
-print("1. Chargement du processeur et du modèle...")
+print("1. Chargement de MusicGen sur la RTX 3070 Ti...")
 processor = AutoProcessor.from_pretrained(model_id)
 model: Any = MusicgenForConditionalGeneration.from_pretrained(
     model_id,
-    dtype=torch.float32,  # ou torch.bfloat16
+    torch_dtype=torch.float16,
+    device_map="cuda",  # Place automatiquement le modèle sur la RTX 3070 Ti
 )
 
 description = "rain sound effects with lightning, distant thunder, dark and dramatic ambient atmosphere"
-print(f"2. Préparation du prompt : « {description} »...")
+print(f"2. Prompt : « {description} »...")
 
+# Les entrées doivent être envoyées sur le même périphérique (CUDA)
 inputs = processor(
     text=[description],
     padding=True,
     return_tensors="pt",
-)
+).to(device)
 
-# 256 tokens audio correspondent environ à 5 secondes de musique
-print("3. Génération de la musique en cours...")
+duree_secondes = 10
+tokens_a_generer = int(duree_secondes * 50)
+
+print(f"3. Génération de {duree_secondes}s de son...")
 with torch.no_grad():
     audio_values = model.generate(
         **inputs,
-        max_new_tokens=500,  # environ 10 secondes de musique
+        max_new_tokens=tokens_a_generer,
         do_sample=True,
     )
 
-# 4. Sauvegarde dans un fichier WAV
-sampling_rate = model.config.audio_encoder.sampling_rate
+# Conversion vers le CPU avant l'écriture sur disque
 scipy.io.wavfile.write(
     "musique.wav",
-    rate=sampling_rate,
-    data=audio_values[0, 0].numpy(),
+    rate=model.config.audio_encoder.sampling_rate,
+    data=audio_values[0, 0].to(torch.float32).cpu().numpy(),
 )
 
-print("Musique générée avec succès dans 'musique.wav' !")
+print("Terminé ! Fichier généré dans 'musique.wav'")
