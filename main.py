@@ -1,41 +1,49 @@
+import msvcrt
 from typing import Any
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
 
-model_id = "HuggingFaceTB/SmolLM2-135M-Instruct"
+model_id = "Qwen/Qwen2.5-1.5B-Instruct"
 
 print("1. Téléchargement et chargement du Tokenizer...")
-tokenizer = AutoTokenizer.from_pretrained(
-    model_id,
-    trust_remote_code=False,  # Refuse explicitement tout code tiers
-)
+tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=False)
 
-print("2. Téléchargement et chargement des poids du modèle (.safetensors)...")
+print("2. Chargement du modèle...")
 model: Any = AutoModelForCausalLM.from_pretrained(
     model_id,
-    trust_remote_code=False,  # Refuse explicitement tout code tiers
-    dtype=torch.float32,  # Calcul standard sur processeur (CPU)
+    trust_remote_code=False,
+    dtype=torch.bfloat16,  # ou torch.float32 selon ton processeur
 )
 
-# TextStreamer affiche les mots calculés au fur et à mesure
 streamer = TextStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
-# Initialisation de la discussion avec la consigne système en premier élément
 messages: list[dict[str, str]] = []
+
+
+def vider_buffer_clavier() -> None:
+    """Vide toutes les frappes en attente dans la console Windows."""
+    while msvcrt.kbhit():
+        msvcrt.getwch()
+
 
 print("\n--- Session de chat démarrée (tape 'exit' pour quitter) ---\n")
 
 while True:
+    # 1. On nettoie tout ce qui a pu être tapé pendant le calcul
+    vider_buffer_clavier()
+
     user_input = input("Toi : ")
+
+    # 2. Gestion de la sortie
     if user_input.strip().lower() in ["exit", "quit", "q"]:
         break
+
+    # 3. Sécurité : si l'entrée est vide (ex: simple appui sur Entrée), on redemande
     if not user_input.strip():
         continue
 
-    # 3. Préparer le message au format chat et enrichir l'historique
     messages.append({"role": "user", "content": user_input})
 
-    # Convertir la discussion selon le template attendu par le modèle
     prompt = tokenizer.apply_chat_template(
         messages, tokenize=False, add_generation_prompt=True
     )
@@ -45,7 +53,7 @@ while True:
     with torch.no_grad():
         outputs = model.generate(
             **inputs,
-            max_new_tokens=200,
+            max_new_tokens=250,
             temperature=0.7,
             top_p=0.9,
             do_sample=True,
@@ -53,7 +61,6 @@ while True:
             streamer=streamer,
         )
 
-    # 4. Décoder uniquement les nouveaux tokens générés pour conserver l'historique
     reponse = tokenizer.decode(
         outputs[0][inputs.input_ids.shape[1] :], skip_special_tokens=True
     )
