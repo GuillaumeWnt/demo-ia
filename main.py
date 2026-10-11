@@ -9,11 +9,12 @@ model_id = "Qwen/Qwen2.5-1.5B-Instruct"
 print("1. Téléchargement et chargement du Tokenizer...")
 tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=False)
 
-print("2. Chargement du modèle...")
+print("2. Chargement du modèle sur la RTX 3070 Ti...")
 model: Any = AutoModelForCausalLM.from_pretrained(
     model_id,
     trust_remote_code=False,
-    dtype=torch.bfloat16,  # ou torch.float32 selon ton processeur
+    dtype=torch.bfloat16,  # Format idéal pour l'architecture Ampere de la 3070 Ti
+    device_map="cuda",  # Charge et alloue automatiquement le modèle sur le GPU
 )
 
 streamer = TextStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
@@ -47,7 +48,7 @@ while True:
     prompt = tokenizer.apply_chat_template(
         messages, tokenize=False, add_generation_prompt=True
     )
-    inputs = tokenizer(prompt, return_tensors="pt")
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 
     print("Modèle : ", end="", flush=True)
     with torch.no_grad():

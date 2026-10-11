@@ -8,7 +8,9 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "torch>=2.14.1",
+    "accelerate>=1.15.0",
+    "scipy>=1.18.1",
+    "torch",
     "transformers>=5.19.0",
 ]
 
@@ -18,3 +20,11 @@ demo-ia = "demo_ia:main"
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13.0"]
 build-backend = "uv_build"
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu124" }
